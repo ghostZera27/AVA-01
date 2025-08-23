@@ -1,0 +1,151 @@
+import React, { useEffect, useState } from 'react';
+import { View, Text, FlatList, TextInput, TouchableOpacity, StyleSheet, Alert, Switch } from 'react-native';
+import { api } from './src/api';
+
+export default function App() {
+  const [produtos, setProdutos] = useState([]);
+  const [idEditando, setIdEditando] = useState(null);
+  const [nome, setNome] = useState('');
+  const [codigo, setCodigo] = useState('');
+  const [preco, setPreco] = useState('');
+  const [quantidade, setQuantidade] = useState('');
+  const [modoEscuro, setModoEscuro] = useState(false);
+
+  const carregarProdutos = async () => {
+    try {
+      const res = await api.get('/products');
+      setProdutos(res.data);
+    } catch (err) {
+      console.error(err);
+      Alert.alert('Erro', 'Não foi possível carregar os produtos.');
+    }
+  };
+
+  useEffect(() => { carregarProdutos(); }, []);
+
+  const resetarFormulario = () => {
+    setIdEditando(null);
+    setNome(''); setCodigo(''); setPreco(''); setQuantidade('');
+  };
+
+  const salvarProduto = async () => {
+    if (!nome) return Alert.alert('Erro', 'Digite o nome do produto');
+    try {
+      if (idEditando) {
+        await api.put(`/products/${idEditando}`, {
+          name: nome, sku: codigo, price: parseFloat(preco) || 0, quantity: parseInt(quantidade) || 0,
+        });
+      } else {
+        await api.post('/products', {
+          name: nome, sku: codigo, price: parseFloat(preco) || 0, quantity: parseInt(quantidade) || 0,
+        });
+      }
+      resetarFormulario();
+      carregarProdutos();
+    } catch (err) {
+      console.error(err);
+      Alert.alert('Erro', 'Não foi possível salvar o produto.');
+    }
+  };
+
+  const editarProduto = (produto) => {
+    setIdEditando(produto.id);
+    setNome(produto.name); setCodigo(produto.sku);
+    setPreco(produto.price.toString()); setQuantidade(produto.quantity.toString());
+  };
+
+  const deletarProduto = async (id) => {
+    try { await api.delete(`/products/${id}`); carregarProdutos(); }
+    catch (err) { console.error(err); Alert.alert('Erro', 'Não foi possível deletar o produto.'); }
+  };
+
+  const tema = modoEscuro ? darkStyles : lightStyles;
+
+  return (
+    <View style={[styles.container, tema.container]}>
+      {/* HEADER */}
+      <View style={styles.header}>
+        <Text style={[styles.logo, tema.text]}>Mercadinho do Ghost</Text>
+        <View style={styles.switchContainer}>
+          <Text style={tema.text}>Modo Escuro</Text>
+          <Switch value={modoEscuro} onValueChange={setModoEscuro} />
+        </View>
+      </View>
+
+      {/* FORMULÁRIO */}
+      <View style={styles.form}>
+        <TextInput style={[styles.input, tema.input]} placeholder="Nome do Produto" value={nome} onChangeText={setNome} placeholderTextColor={modoEscuro ? "#ccc" : "#666"} />
+        <TextInput style={[styles.input, tema.input]} placeholder="Código do Produto" value={codigo} onChangeText={setCodigo} placeholderTextColor={modoEscuro ? "#ccc" : "#666"} />
+        <TextInput style={[styles.input, tema.input]} placeholder="Preço" value={preco} onChangeText={setPreco} keyboardType="numeric" placeholderTextColor={modoEscuro ? "#ccc" : "#666"} />
+        <TextInput style={[styles.input, tema.input]} placeholder="Quantidade" value={quantidade} onChangeText={setQuantidade} keyboardType="numeric" placeholderTextColor={modoEscuro ? "#ccc" : "#666"} />
+        <TouchableOpacity style={[styles.saveButton, tema.button]} onPress={salvarProduto}>
+          <Text style={tema.buttonText}>{idEditando ? "Salvar Alteração" : "Adicionar Produto"}</Text>
+        </TouchableOpacity>
+        {idEditando && (
+          <TouchableOpacity style={[styles.cancelButton, { backgroundColor: "#f44336" }]} onPress={resetarFormulario}>
+            <Text style={{ color: "#fff", fontWeight: "bold" }}>Cancelar</Text>
+          </TouchableOpacity>
+        )}
+      </View>
+
+      {/* LISTA DE PRODUTOS */}
+      <FlatList
+        style={{ marginTop: 20 }}
+        data={produtos}
+        keyExtractor={(item) => item.id.toString()}
+        renderItem={({ item }) => (
+          <View style={[styles.product, tema.product]}>
+            <View style={{ flex: 1 }}>
+              <Text style={tema.text}>
+                {item.name} | Código: {item.sku} | R$ {item.price} | Qtd: {item.quantity}
+              </Text>
+            </View>
+            <View style={styles.buttons}>
+              <TouchableOpacity style={[styles.editButton, { backgroundColor: "#2196F3" }]} onPress={() => editarProduto(item)}>
+                <Text style={tema.buttonText}>Editar</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={[styles.deleteButton, { backgroundColor: "#f44336" }]} onPress={() => deletarProduto(item.id)}>
+                <Text style={tema.buttonText}>Deletar</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        )}
+      />
+    </View>
+  );
+}
+
+// TEMAS
+const lightStyles = StyleSheet.create({
+  container: { backgroundColor: "#fff" },
+  text: { color: "#000" },
+  input: { backgroundColor: "#f0f0f0", color: "#000" },
+  button: { backgroundColor: "#4CAF50" },
+  buttonText: { color: "#fff", fontWeight: "bold" },
+  product: { backgroundColor: "#fff" },
+});
+
+const darkStyles = StyleSheet.create({
+  container: { backgroundColor: "#121212" },
+  text: { color: "#fff" },
+  input: { backgroundColor: "#1e1e1e", color: "#fff" },
+  button: { backgroundColor: "#4CAF50" },
+  buttonText: { color: "#fff", fontWeight: "bold" },
+  product: { backgroundColor: "#1e1e1e" },
+});
+
+// ESTILOS GERAIS
+const styles = StyleSheet.create({
+  container: { flex: 1, padding: 20, marginTop: 40 },
+  header: { flexDirection: "column", alignItems: "flex-start", marginBottom: 10 },
+  switchContainer: { flexDirection: "row", alignItems: "center", marginTop: 5, gap: 10 },
+  logo: { fontSize: 32, fontWeight: 'bold', color: '#4CAF50' },
+  form: { marginBottom: 10 },
+  input: { borderWidth: 1, borderColor: "#ccc", padding: 10, marginBottom: 10, borderRadius: 8 },
+  saveButton: { padding: 12, borderRadius: 8, alignItems: "center", marginBottom: 8 },
+  cancelButton: { padding: 12, borderRadius: 8, alignItems: "center", marginBottom: 8 },
+  product: { padding: 12, borderBottomWidth: 1, borderBottomColor: "#ccc", flexDirection: "row", alignItems: "center", marginBottom: 5 },
+  buttons: { flexDirection: "row", gap: 5 },
+  editButton: { padding: 6, borderRadius: 5 },
+  deleteButton: { padding: 6, borderRadius: 5 },
+});
